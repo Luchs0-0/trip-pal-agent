@@ -161,7 +161,83 @@ def days_until(target_date: str) -> dict:
 
 
 # ---------------------------------------------------------------------------
-# 工具 5：拼假建议
+# 工具 5：下一个假期
+# ---------------------------------------------------------------------------
+@tool
+def next_holiday(from_date: str = "") -> dict:
+    """查询「下一个假期」：内地和香港各自最近的下一个法定假期。
+
+    用于回答「下一个假期是什么时候」「离下个假期还有几天」这类问题。
+    若 from_date 当天正处于某个假期中，也会把它作为「进行中的假期」返回。
+
+    Args:
+        from_date: 起始日期，格式 YYYY-MM-DD；缺省为今天。
+    """
+    if from_date:
+        try:
+            anchor = date.fromisoformat(from_date)
+        except ValueError:
+            return {"error": f"日期格式应为 YYYY-MM-DD，收到 {from_date!r}"}
+    else:
+        anchor = date.today()
+
+    result: dict = {"from": anchor.isoformat(), "cn": None, "hk": None}
+
+    # ---- 内地：假期是区间（start~end），找含 anchor 或晚于 anchor 的最近一个 ----
+    cn_candidates: list[tuple[int, date, dict]] = []
+    for year in available_years("cn"):
+        for h in get_cn_holidays(year):
+            start = date.fromisoformat(h["start"])
+            end = date.fromisoformat(h["end"])
+            if end >= anchor:
+                cn_candidates.append(((end - anchor).days, start, h))
+    if cn_candidates:
+        cn_candidates.sort(key=lambda x: x[0])
+        _, start, h = cn_candidates[0]
+        end = date.fromisoformat(h["end"])
+        result["cn"] = {
+            "festival": h["name"],
+            "start": h["start"],
+            "end": h["end"],
+            "days_until_start": (start - anchor).days,
+            "in_progress": start <= anchor <= end,
+            "weekday_of_start": "星期" + "一二三四五六日"[start.weekday()],
+        }
+
+    # ---- 香港：单日假期，找含 anchor 或晚于 anchor 的最近一个 ----
+    hk_candidates: list[tuple[int, dict]] = []
+    for year in available_years("hk"):
+        for h in get_hk_holidays(year):
+            d = date.fromisoformat(h["date"])
+            if d >= anchor:
+                hk_candidates.append(((d - anchor).days, h))
+    if hk_candidates:
+        hk_candidates.sort(key=lambda x: x[0])
+        _, h = hk_candidates[0]
+        d = date.fromisoformat(h["date"])
+        result["hk"] = {
+            "festival": h["name"],
+            "date": h["date"],
+            "days_until": (d - anchor).days,
+            "in_progress": d == anchor,
+            "weekday": h.get("weekday", "星期" + "一二三四五六日"[d.weekday()]),
+        }
+
+    # ---- 汇总：最早到来的那个（含进行中）----
+    earliest: list[tuple[int, str]] = []
+    if result["cn"]:
+        earliest.append((result["cn"]["days_until_start"], "cn"))
+    if result["hk"]:
+        earliest.append((result["hk"]["days_until"], "hk"))
+    if earliest:
+        earliest.sort(key=lambda x: x[0])
+        result["nearest_region"] = earliest[0][1]
+
+    return result
+
+
+# ---------------------------------------------------------------------------
+# 工具 6：拼假建议
 # ---------------------------------------------------------------------------
 @tool
 def suggest_leave_stacking(
@@ -341,7 +417,14 @@ def suggest_leave_stacking(
 
 
 # 导出：LangGraph 绑定用的工具列表
-ALL_TOOLS = [get_holidays_cn, get_holidays_hk, find_common_breaks, days_until, suggest_leave_stacking]
+ALL_TOOLS = [
+    get_holidays_cn,
+    get_holidays_hk,
+    find_common_breaks,
+    days_until,
+    next_holiday,
+    suggest_leave_stacking,
+]
 
 # 给模型看的工具使用指引（拼进系统提示）
 TOOL_GUIDE = f"""今天是 {date.today().isoformat()}。
@@ -351,6 +434,7 @@ TOOL_GUIDE = f"""今天是 {date.today().isoformat()}。
 - 查询香港公众假期 → get_holidays_hk
 - 问两地共同/接近的假期 → find_common_breaks
 - 算距离某日期还有几天 → days_until
+- 问「下一个假期是什么/还有几天」（内地+香港各自最近的一个）→ next_holiday
 - 问「怎么请假连休/拼假最划算」（内地或香港）→ suggest_leave_stacking
   参数 region="cn" 或 "hk"，默认 "cn"
 - 数据覆盖：内地 2025-2026，香港 2025-2027。

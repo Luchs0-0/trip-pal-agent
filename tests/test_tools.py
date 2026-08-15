@@ -1,4 +1,4 @@
-"""工具层测试：验证 5 个工具的关键行为。
+"""工具层测试：验证 6 个工具的关键行为。
 
 重点覆盖拼假逻辑——这是我们反复调过的复杂逻辑，
 必须有测试保护，防止以后改代码时弄坏。
@@ -10,6 +10,7 @@ from trip_pal.tools import (
     find_common_breaks,
     get_holidays_cn,
     get_holidays_hk,
+    next_holiday,
     suggest_leave_stacking,
 )
 
@@ -38,6 +39,39 @@ class TestHolidayTools:
         r = days_until.invoke({"target_date": "2026-10-01"})
         assert r["days_remaining"] > 0
         assert r["weekday_of_target"] == "星期四"
+
+
+class TestNextHoliday:
+    """下一个假期工具测试。"""
+
+    def test_from_mid_august_2026(self):
+        """2026-08-15 起：内地下一个应是中秋节（9/25），香港最近是中秋翌日（9/26）。"""
+        r = next_holiday.invoke({"from_date": "2026-08-15"})
+        assert r["cn"]["festival"] == "中秋节"
+        assert r["cn"]["days_until_start"] == 41  # 9/25 - 8/15
+        assert r["hk"]["festival"] == "中秋節翌日"
+        assert r["hk"]["days_until"] == 42  # 9/26 - 8/15
+        assert r["nearest_region"] == "cn"
+
+    def test_from_inside_holiday_marks_in_progress(self):
+        """2026-10-03（国庆假期中）应标记 in_progress=True。"""
+        r = next_holiday.invoke({"from_date": "2026-10-03"})
+        assert r["cn"]["festival"] == "国庆节"
+        assert r["cn"]["in_progress"] is True
+        assert r["cn"]["days_until_start"] == -2
+
+    def test_from_late_2026_no_cn_data(self):
+        """2026-12-15 起：内地无 2027 数据 → cn 为 None，香港还有圣诞（繁体名）。"""
+        r = next_holiday.invoke({"from_date": "2026-12-15"})
+        assert r["cn"] is None
+        assert r["hk"] is not None
+        assert r["hk"]["festival"] == "聖誕節"
+        assert r["nearest_region"] == "hk"
+
+    def test_invalid_date(self):
+        """非法日期应返回 error。"""
+        r = next_holiday.invoke({"from_date": "not-a-date"})
+        assert "error" in r
 
 
 class TestFindCommonBreaks:
