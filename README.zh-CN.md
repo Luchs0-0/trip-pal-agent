@@ -37,7 +37,7 @@
 85 秒 Web UI 完整演示——节假日查询、两地共同假期匹配、拼假方案生成：
 
 <p align="center">
-  <video src="https://raw.githubusercontent.com/zhounongshen/trip-pal-agent/main/demo_video/trippal_demo_final.mp4" controls preload="metadata" width="100%" style="max-width:720px"></video>
+  <video src="https://github.com/user-attachments/assets/d3ca2f7f-dd3b-424d-b21c-71a4ad1e7935" controls preload="metadata" width="100%" style="max-width:720px"></video>
 </p>
 
 - 🎥 **视频**：`demo_video/trippal_demo_final.mp4`（84 秒，英文旁白 + 内嵌英文字幕）
