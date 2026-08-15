@@ -1,5 +1,0 @@
-shot_1_welcome|Meet TripPal — an AI travel assistant that knows both Hong Kong and Mainland China holidays. Just ask, and it answers with real official data.
-shot_2_national_day|Ask about the 2026 National Day holiday. TripPal calls a data tool and returns the exact schedule — seven days, from October first to October seventh.
-shot_3_leave_stacking|Here is the smart part. TripPal can suggest leave stacking. Take just two days off, and you get a ten day break. It even shows you the tool calls behind the answer.
-shot_4_scrolled|Every answer comes with a transparent trace of the agent's reasoning. You always know exactly where the information came from.
-shot_5_github|Built with LangGraph and DeepSeek, with multi-turn memory, automated tests, and continuous integration. The full source code is on GitHub — try it yourself.

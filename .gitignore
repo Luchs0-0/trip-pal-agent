@@ -24,3 +24,7 @@ web/sessions/
 .idea/
 .vscode/
 *.swp
+
+# 本地 demo 素材（不入库）
+demo_video/
+demo_recording_*.png
