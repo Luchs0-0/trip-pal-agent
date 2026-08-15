@@ -1,0 +1,49 @@
+# TripPal CI：每次 push / PR 时自动运行测试
+# 在 GitHub 的"干净环境"里：装依赖 → 跑 pytest → 报告结果
+name: CI
+
+# 触发条件：push 到任意分支，或创建 Pull Request
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    # 在 Ubuntu 最新版上运行（GitHub 提供的云虚拟机）
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.11", "3.12"]  # 在两个 Python 版本上分别测试
+
+    steps:
+      # 1. 把代码下载到虚拟机
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # 2. 安装指定版本的 Python
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      # 3. 安装项目依赖（从 requirements.txt）
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pytest
+
+      # 4. 运行测试（PYTHONPATH 指向 src，让 import 生效）
+      - name: Run tests
+        run: |
+          PYTHONPATH=src python -m pytest tests/ -v
+
+      # 5. 验证 CLI 能正常构建（不调 LLM，只确认导入无误）
+      - name: Verify imports
+        run: |
+          PYTHONPATH=src python -c "
+          from trip_pal.tools import ALL_TOOLS
+          from trip_pal.data_loader import get_cn_holidays, get_hk_holidays
+          print(f'OK: {len(ALL_TOOLS)} tools, CN {len(get_cn_holidays(2026))} holidays, HK {len(get_hk_holidays(2026))} holidays')
+          "
