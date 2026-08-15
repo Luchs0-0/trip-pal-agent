@@ -21,7 +21,9 @@ Ask it "How many days is the 2026 National Day holiday?" or "When is the next co
 | 🇨🇳 内地节假日 / CN Holidays | 国务院办公厅安排，含调休 / State Council schedule incl. makeup days | 「2026 年国庆放几天假？」 |
 | 🤝 共同假期窗口 / Common Breaks | 自动求两地假期重叠区间 / Find overlapping holiday windows | 「内地和香港下个共同长假期是？」 |
 | 📅 日期计算 / Date Calc | 距离某日还有几天 / Days until a date | 「距离下个国庆还有几天？」 |
-| 🌐 Web UI | 浏览器对话，展示 Agent 工具调用过程 / Chat UI with tool-call trace | — |
+| ✂️ 拼假建议 / Leave Stacking | 内地 + 香港拼假方案（自动跳过调休补班、利用周末）/ CN + HK stacking plans | 「2026 国庆怎么拼假最划算？」「香港圣诞节如何拼假？」 |
+| 🧠 多轮记忆 / Multi-turn Memory | 对话历史持久化到磁盘，刷新/重启不丢 / Session memory persisted to disk | 连续追问「香港呢？」也能理解上文 |
+| 🌐 Web UI | 浏览器对话，展示 Agent 工具调用过程 + 快捷提问按钮 / Chat UI with tool-call trace & quick-ask buttons | — |
 | 💬 交互式 CLI / Interactive CLI | 终端多轮对话 / Terminal multi-turn chat | — |
 
 ---
@@ -104,7 +106,7 @@ PYTHONPATH=src .venv/bin/python -m trip_pal.cli "2026年国庆内地放几天假
 ```
 
 - **模型 / Model**：DeepSeek V4 Flash（判断、规划、组织语言 / reasoning & language）
-- **工具 / Tools**：4 个结构化查询工具 / 4 structured query tools（拿真实数据 / fetch real data）
+- **工具 / Tools**：5 个结构化工具 / 5 structured tools（查询内地/香港、共同假期、日期、拼假 / fetch real data & compute plans）
 - **编排 / Orchestration**：LangGraph `create_react_agent`（"思考→行动"循环 / reason-act loop）
 - **数据 / Data**：一次性从官方抓取为本地 JSON，运行时不依赖网络 / fetched once into local JSON, no runtime network
 
@@ -153,13 +155,15 @@ trip-pal-agent/
 ## 🗺️ Roadmap
 
 - [x] 数据抓取与 JSON 建模 / Data fetching & JSON modeling
-- [x] 4 个工具 / 4 tools（内地 / HK / 共同假期 / 日期计算）
+- [x] 5 个工具 / 5 tools（内地 / HK / 共同假期 / 日期计算 / 拼假）
+- [x] 拼假建议支持内地 + 香港（繁简/别名匹配）/ Leave stacking for CN + HK
 - [x] LangGraph Agent 循环（多步工具调用 / multi-step tool calls）
-- [x] Web UI（含工具调用轨迹展示 / with tool-call trace）
+- [x] 多轮对话记忆（持久化到磁盘，刷新/重启不丢）/ Multi-turn memory (disk-persisted)
+- [x] Web UI（工具轨迹展示 + 快捷提问按钮）/ Web UI with trace & quick-ask
 - [x] 交互式 CLI / Interactive CLI
-- [ ] 多轮对话记忆 / Multi-turn memory（当前每次对话独立 / currently stateless）
 - [ ] 2027 内地数据 / 2027 CN data（官方发布后补 / once released）
-- [ ] GitHub Actions 自动化测试 / CI tests
+- [ ] 单元测试 + GitHub Actions CI / Unit tests & CI
+- [ ] 香港共同假期对比增强 / Enhanced HK-CN holiday comparison
 
 ---
 

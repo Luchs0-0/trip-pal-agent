@@ -42,10 +42,7 @@
 </header>
 
 <div id="messages">
-  <div class="msg bot">你好！我是 TripPal 👋 可以问我：
-- "2026 年国庆内地放几天假？"
-- "香港 2027 年春节是哪几天？"
-- "内地和香港下个共同长假期是什么时候？"</div>
+  <!-- 欢迎语由 JS 的 showWelcome() 渲染（含快捷提问按钮）-->
 </div>
 
 <div class="hint">提示：回答下方会显示 Agent 的工具调用过程，方便你理解它是怎么思考的。</div>
@@ -88,6 +85,41 @@ function addMessage(role, content, trace) {
   return div;
 }
 
+// 欢迎语 + 快捷提问按钮（点击按钮直接提问，省去复制粘贴）
+function showWelcome() {
+  const div = document.createElement('div');
+  div.className = 'msg bot';
+
+  const text = document.createElement('div');
+  text.textContent = '你好！我是 TripPal 👋 可以点击下面的问题直接问我，也可以自己输入：';
+  div.appendChild(text);
+
+  // 快捷提问按钮
+  const suggestions = [
+    '2026 年国庆内地放几天假？',
+    '香港 2027 年春节是哪几天？',
+    '内地和香港下个共同长假期是什么时候？',
+    '2026 国庆怎么拼假最划算？',
+  ];
+  const btnWrap = document.createElement('div');
+  btnWrap.style.cssText = 'display:flex; flex-wrap:wrap; gap:8px; margin-top:10px;';
+  suggestions.forEach((q) => {
+    const b = document.createElement('button');
+    b.textContent = q;
+    b.style.cssText =
+      'background:#1c2330; color:#9aa7b4; border:1px solid #2a3442; border-radius:16px; ' +
+      'padding:6px 14px; font-size:12px; cursor:pointer;';
+    b.addEventListener('click', () => sendQuestion(q));
+    b.addEventListener('mouseenter', () => { b.style.borderColor = '#38bdf8'; b.style.color = '#38bdf8'; });
+    b.addEventListener('mouseleave', () => { b.style.borderColor = '#2a3442'; b.style.color = '#9aa7b4'; });
+    btnWrap.appendChild(b);
+  });
+  div.appendChild(btnWrap);
+
+  messagesEl.appendChild(div);
+  messagesEl.scrollTop = messagesEl.scrollHeight;
+}
+
 // 会话 ID：存 localStorage，刷新页面后仍保持同一个会话（记忆不丢）
 function getSessionId() {
   let sid = localStorage.getItem('trip_pal_session');
@@ -107,23 +139,29 @@ async function loadHistory() {
     if (data.messages && data.messages.length) {
       // 有历史：先清掉默认欢迎语，再重新显示欢迎语 + 历史（界面保持一致）
       messagesEl.innerHTML = '';
-      addMessage('bot', '你好！我是 TripPal 👋 可以问我：\n- "2026 年国庆内地放几天假？"\n- "香港 2027 年春节是哪几天？"\n- "内地和香港下个共同长假期是什么时候？"', null);
+      showWelcome();
       data.messages.forEach((m) => {
         // 历史里带 trace，恢复工具调用展示
         addMessage(m.role === 'user' ? 'user' : 'bot', m.content, m.trace || null);
       });
+    } else {
+      // 无历史：显示欢迎语（含快捷提问按钮）
+      messagesEl.innerHTML = '';
+      showWelcome();
     }
   } catch (e) {
-    // 网络异常时静默失败，保留默认欢迎语
+    // 网络异常：显示欢迎语兜底
+    messagesEl.innerHTML = '';
+    showWelcome();
   }
 }
 
 // 页面初始化：恢复历史对话
 loadHistory();
 
-// 发送问题
-async function sendQuestion() {
-  const q = inputEl.value.trim();
+// 发送问题（支持直接传文本，供快捷按钮调用；不传则读输入框）
+async function sendQuestion(questionText) {
+  const q = (questionText !== undefined ? questionText : inputEl.value).trim();
   if (!q) return;
   addMessage('user', q);
   inputEl.value = '';
@@ -155,9 +193,9 @@ async function clearHistory() {
   } catch (e) {
     // 网络异常不阻塞界面清空
   }
-  // 2. 清界面，恢复欢迎语
+  // 2. 清界面，恢复欢迎语（含快捷提问按钮）
   messagesEl.innerHTML = '';
-  addMessage('bot', '你好！我是 TripPal 👋 可以问我：\n- "2026 年国庆内地放几天假？"\n- "香港 2027 年春节是哪几天？"\n- "内地和香港下个共同长假期是什么时候？"', null);
+  showWelcome();
 }
 
 sendBtn.addEventListener('click', sendQuestion);
