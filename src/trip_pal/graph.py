@@ -67,6 +67,49 @@ def ask(question: str) -> str:
     return "（Agent 没有返回有效回答）"
 
 
+def chat(history: list, question: str) -> tuple[str, list[dict], list]:
+    """多轮对话：接收历史消息 + 新问题，返回（回答, 工具轨迹, 更新后的历史）。
+
+    这是「多轮记忆」的核心函数：
+      - history: 之前的完整对话消息列表（LangChain 消息对象）
+      - question: 用户刚输入的新问题
+      - 返回的第三个值 history_new：把本轮对话追加进去，下次再传回来即可
+
+    调用方（CLI / Web）负责保存 history_new，实现跨轮记忆。
+    """
+    agent = build_agent()
+    # 把历史 + 新问题拼在一起发给 agent —— 这就是记忆的机制
+    messages_in = list(history) + [{"role": "user", "content": question}]
+    result = agent.invoke({"messages": messages_in})
+    messages = result.get("messages", [])
+
+    # 提取回答 + 工具轨迹（逻辑与 ask_with_trace 相同）
+    trace: list[dict] = []
+    answer = "（Agent 没有返回有效回答）"
+    for msg in messages:
+        mtype = getattr(msg, "type", "")
+        if mtype == "ai" and getattr(msg, "tool_calls", None):
+            for tc in msg.tool_calls:
+                trace.append(
+                    {
+                        "tool": tc.get("name", ""),
+                        "args": tc.get("args", {}),
+                        "result": "（等待执行）",
+                    }
+                )
+        elif mtype == "tool":
+            for item in reversed(trace):
+                if item["tool"] == msg.name and item["result"] == "（等待执行）":
+                    item["result"] = str(msg.content)[:500]
+                    break
+        elif mtype == "ai" and not getattr(msg, "tool_calls", None):
+            answer = str(msg.content)
+
+    # 更新后的历史 = 完整消息（包含本轮新增的所有消息）
+    history_new = messages
+    return answer, trace, history_new
+
+
 def ask_with_trace(question: str) -> tuple[str, list[dict]]:
     """返回 (回答, 工具调用轨迹)，供 CLI / Web 展示 agent 思考过程。
 

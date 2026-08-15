@@ -88,6 +88,16 @@ function addMessage(role, content, trace) {
   return div;
 }
 
+// 会话 ID：存 localStorage，刷新页面后仍保持同一个会话（记忆不丢）
+function getSessionId() {
+  let sid = localStorage.getItem('trip_pal_session');
+  if (!sid) {
+    sid = 'web-' + Date.now() + '-' + Math.random().toString(36).slice(2, 10);
+    localStorage.setItem('trip_pal_session', sid);
+  }
+  return sid;
+}
+
 // 发送问题
 async function sendQuestion() {
   const q = inputEl.value.trim();
@@ -101,7 +111,7 @@ async function sendQuestion() {
     const resp = await fetch('/ask', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ question: q }),
+      body: JSON.stringify({ session_id: getSessionId(), question: q }),
     });
     if (!resp.ok) throw new Error('HTTP ' + resp.status);
     const data = await resp.json();

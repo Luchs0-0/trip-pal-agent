@@ -13,7 +13,7 @@ from __future__ import annotations
 
 import sys
 
-from .graph import ask_with_trace
+from .graph import chat, ask_with_trace
 
 
 def _print_trace(trace: list[dict]) -> None:
@@ -55,6 +55,7 @@ def main() -> None:
     # 交互式多轮对话模式
     print("TripPal 交互模式已启动（输入 exit 退出）")
     print("-" * 50)
+    history: list = []  # 对话历史：跨轮记忆的关键
     while True:
         try:
             question = input("你: ").strip()
@@ -67,7 +68,8 @@ def main() -> None:
             print("再见！")
             break
         try:
-            answer, trace = ask_with_trace(question)
+            # 把历史 + 新问题交给 agent，并拿回更新后的历史
+            answer, trace, history = chat(history, question)
             _print_trace(trace)
             print(f"\nTripPal: {answer}\n")
         except Exception as e:  # noqa: BLE001
