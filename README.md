@@ -2,6 +2,9 @@
 
 [![CI](https://github.com/zhounongshen/trip-pal-agent/actions/workflows/ci.yml/badge.svg)](https://github.com/zhounongshen/trip-pal-agent/actions)
 
+> 🎬 **在线演示 / Live Demo**：<https://zhounongshen.github.io/trip-pal-agent/demo.html>
+> （纯前端演示，预录回答 + 工具调用轨迹展示，不消耗 API）
+
 > 🌐 **中文 | English** — 一个用自然语言查询 **香港 / 内地节假日与行程** 的 LangGraph Agent
 > A LangGraph agent that answers questions about **Hong Kong / Mainland China holidays & travel** in natural language.
 
@@ -165,6 +168,7 @@ trip-pal-agent/
 - [x] 交互式 CLI / Interactive CLI
 - [ ] 2027 内地数据 / 2027 CN data（官方发布后补 / once released）
 - [x] 单元测试（14 个 pytest）+ GitHub Actions CI / Unit tests & CI
+- [x] GitHub Pages 在线演示 / Live demo on GitHub Pages
 - [ ] 香港共同假期对比增强 / Enhanced HK-CN holiday comparison
 
 ---
