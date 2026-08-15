@@ -1,9 +1,7 @@
 # TripPal · 两地行程助手 / Cross-Border Travel Assistant
 
 [![CI](https://github.com/zhounongshen/trip-pal-agent/actions/workflows/ci.yml/badge.svg)](https://github.com/zhounongshen/trip-pal-agent/actions)
-
-> 🎬 **在线演示 / Live Demo**：<https://zhounongshen.github.io/trip-pal-agent/demo.html>
-> （纯前端演示，预录回答 + 工具调用轨迹展示，不消耗 API）
+[![Live Demo](https://img.shields.io/badge/🎬-Live_Demo-38bdf8?style=for-the-badge&logo=github)](https://zhounongshen.github.io/trip-pal-agent/demo.html)
 
 > 🌐 **中文 | English** — 一个用自然语言查询 **香港 / 内地节假日与行程** 的 LangGraph Agent
 > A LangGraph agent that answers questions about **Hong Kong / Mainland China holidays & travel** in natural language.
