@@ -168,63 +168,126 @@ def suggest_leave_stacking(
     year: int,
     festival: str = "",
     max_leave_days: int = 3,
+    region: str = "cn",
 ) -> dict:
-    """给出内地节假日的「拼假」建议（请假连休方案）。
+    """给出节假日「拼假」建议（请假连休方案），支持内地与香港。
 
-    拼假原理：节假日前后紧邻周末/调休，只要请掉「假期前后的工作日」，
+    拼假原理：节假日前后紧邻周末，只要请掉「假期前后的工作日」，
     就能把周末也连进来，用少量年假换超长假期。
+
+    内地与香港差异：
+      - 内地：假期多为连续多天区间，有调休补班日（拼假时需跳过）；
+      - 香港：假期以单日为主（连续多日会合并），无调休，工作日=周一至五非假期。
 
     Args:
         year: 年份，如 2026。
-        festival: 可选，只分析指定节日（如「国庆节」「劳动节」）；
-                  空字符串则分析该年所有 ≥3 天的节日。
+        festival: 可选，只分析指定节日（如「国庆节」「圣诞节」）；
+                  空字符串则分析该年所有符合条件的节日。
         max_leave_days: 最多愿意请几天假（1-5，默认 3）。
+        region: "cn"（内地）或 "hk"（香港），默认 "cn"。
     """
     if not (1 <= max_leave_days <= 5):
         return {"error": "max_leave_days 必须在 1..5 之间"}
+    if region not in ("cn", "hk"):
+        return {"error": f"region 必须是 cn 或 hk，收到 {region!r}"}
 
-    holidays = get_cn_holidays(year)
-    if not holidays:
-        return {"year": year, "note": f"暂无 {year} 年内地节假日数据", "plans": []}
+    # ---- 区域适配：加载假期区间 ----
+    if region == "cn":
+        raw = get_cn_holidays(year)
+        if not raw:
+            return {"year": year, "note": f"暂无 {year} 年内地节假日数据", "plans": []}
+        # 内地：每条记录自带 start/end 区间
+        targets = []
+        for h in raw:
+            if festival and festival not in h["name"]:
+                continue
+            start = date.fromisoformat(h["start"])
+            end = date.fromisoformat(h["end"])
+            days = (end - start).days + 1
+            if festival or days >= 3:
+                targets.append((h["name"], start, end, days))
+        makeup_days = {
+            date.fromisoformat(d)
+            for h in raw
+            for d in h.get("makeup_workdays", [])
+        }
+    else:  # hk
+        raw = get_hk_holidays(year)
+        if not raw:
+            return {"year": year, "note": f"暂无 {year} 年香港公众假期数据", "plans": []}
+        # 香港：单日假期，先把连续日期合并成区间
+        hk_dates = sorted(date.fromisoformat(h["date"]) for h in raw)
+        ranges: list[tuple[date, date]] = []
+        for d in hk_dates:
+            if ranges and ranges[-1][1] + timedelta(days=1) >= d:
+                ranges[-1] = (ranges[-1][0], d)
+            else:
+                ranges.append((d, d))
+        targets = []
+        for start, end in ranges:
+            # 收集该区间内所有节日名（合并区间可能含多个节日，如年初一~年初四）
+            names_in_range = [
+                h["name"] for h in raw
+                if start <= date.fromisoformat(h["date"]) <= end
+            ]
+            if festival:
+                # 香港节日名是繁体（如「聖誕節」），转简体后匹配
+                try:
+                    from opencc import OpenCC
 
-    # 过滤：指定节日，或 ≥3 天的长假
-    targets = []
-    for h in holidays:
-        if festival and festival not in h["name"]:
-            continue
-        start = date.fromisoformat(h["start"])
-        end = date.fromisoformat(h["end"])
-        days = (end - start).days + 1
-        if festival or days >= 3:
-            targets.append((h["name"], start, end, days))
+                    cc = OpenCC("t2s")
+                    names_s = [cc.convert(n) for n in names_in_range]
+                except ImportError:
+                    names_s = names_in_range
+                # 别名映射：用户常用说法 → 数据里的关键词
+                # 如「农历新年/春节/过年」→「农历年初」
+                alias_map = {
+                    "农历新年": "农历年初",
+                    "春节": "农历年初",
+                    "过年": "农历年初",
+                    "复活节": "复活节",
+                    "圣诞": "圣诞",
+                    "元旦": "一月一日",
+                }
+                keyword = alias_map.get(festival, festival)
+                # 关键词命中区间内任意节日名即可（如"农历新年"匹配"农历年初一"）
+                if not any(keyword in n for n in names_s):
+                    continue
+                name_s = "、".join(names_s)
+            else:
+                name_s = "、".join(names_in_range)
+            days = (end - start).days + 1
+            targets.append((name_s, start, end, days))
+        makeup_days: set[date] = set()  # 香港无调休
 
+    # ---- 区域适配：判断某天是否「值得请假的普通工作日」 ----
+    def is_leave_candidate(d: date) -> bool:
+        """判断某天是否值得请假的「工作日」。"""
+        if d.weekday() >= 5:
+            return False
+        # 是假期 → 不用请
+        for _, s, e, _ in targets:
+            if s <= d <= e:
+                return False
+        # 是调休补班日（仅内地）→ 不算请假候选
+        if d in makeup_days:
+            return False
+        return True
+
+    # ---- 主逻辑：对每个请假天数生成向前/向后拼方案 ----
     plans: list[dict] = []
 
     def build_plan(name, start, end, holiday_days, leave_days, rest_start, rest_end):
-        """构造一个方案 dict。
-
-        total_rest_days = 连休范围内的自然日 - 范围内「实际要上班」的日子。
-        要上班的日子 = 普通工作日中没请假的 + 调休补班日。
-        这样才算「真正能休息的天数」。
-        """
+        """构造方案。total_rest_days = 连休自然日 - 范围内实际要上班的日子。"""
         leave_set = {d.isoformat() for d in leave_days}
         work_days = 0
         d = rest_start
         while d <= rest_end:
-            # 调休补班日 → 上班
-            for h in get_cn_holidays(year):
-                if d.isoformat() in h.get("makeup_workdays", []):
-                    work_days += 1
-                    break
-            else:
-                # 普通工作日（周一至五、非节假日、非请假）→ 上班
-                if d.weekday() < 5 and d.isoformat() not in leave_set:
-                    in_holiday = any(
-                        date.fromisoformat(h["start"]) <= d <= date.fromisoformat(h["end"])
-                        for h in get_cn_holidays(year)
-                    )
-                    if not in_holiday:
-                        work_days += 1
+            in_holiday = any(s <= d <= e for _, s, e, _ in targets)
+            if d in makeup_days:
+                work_days += 1  # 调休补班日上班
+            elif d.weekday() < 5 and d.isoformat() not in leave_set and not in_holiday:
+                work_days += 1  # 普通工作日（没请假）上班
             d += timedelta(days=1)
         total_rest = (rest_end - rest_start).days + 1 - work_days
         return {
@@ -238,48 +301,23 @@ def suggest_leave_stacking(
         }
 
     for name, start, end, holiday_days in targets:
-        # ---- 拼假核心逻辑 ----
-        # 注意：拼假时「调休上班日」（如国庆后的周六补班）不算请假候选——
-        # 因为补班日本来就要上班，请它只换 1 天，不划算；
-        # 真正划算的是请「普通工作日」（周一至五且非节假日），
-        # 它能连上后面的周末，用 1 天年假换 2-3 天休息。
-        def is_leave_candidate(d: date) -> bool:
-            """判断某天是否值得请假的「普通工作日」。"""
-            # 周一至五
-            if d.weekday() >= 5:
-                return False
-            # 是节假日 → 不用请
-            for h in get_cn_holidays(year):
-                hs, he = date.fromisoformat(h["start"]), date.fromisoformat(h["end"])
-                if hs <= d <= he:
-                    return False
-            # 是调休上班日（周末补班）→ 不算请假候选（见上注释）
-            for h in get_cn_holidays(year):
-                if d.isoformat() in h.get("makeup_workdays", []):
-                    return False
-            return True
-
-        # 对每个请假天数（1..max_leave_days）生成方案，让用户权衡
         for n_leave in range(1, max_leave_days + 1):
-            # 方案 A：向后拼。注意 rest 范围要「扫过周末」——
-            # 请满 n 天后，还要继续扫到下一个「可请日」才停，
-            # 这样中间的周末/补班日都算进连休范围。
+            # 方案 A：向后拼（rest 范围扫过周末）
             leave: list[date] = []
             cursor = end + timedelta(days=1)
             while True:
                 if is_leave_candidate(cursor):
                     leave.append(cursor)
                     if len(leave) >= n_leave:
-                        # 已请满：继续往后扫，直到下一个可请日（边界）
                         cursor += timedelta(days=1)
                         while not is_leave_candidate(cursor):
                             cursor += timedelta(days=1)
-                        cursor -= timedelta(days=1)  # 边界的前一天 = 连休最后一天
+                        cursor -= timedelta(days=1)
                         break
                 cursor += timedelta(days=1)
             plan_a = build_plan(name, start, end, holiday_days, leave, start, cursor)
 
-            # 方案 B：向前拼（对称逻辑）
+            # 方案 B：向前拼（对称）
             leave_b: list[date] = []
             cursor_b = start - timedelta(days=1)
             while True:
@@ -289,18 +327,17 @@ def suggest_leave_stacking(
                         cursor_b -= timedelta(days=1)
                         while not is_leave_candidate(cursor_b):
                             cursor_b -= timedelta(days=1)
-                        cursor_b += timedelta(days=1)  # 边界后一天 = 连休第一天
+                        cursor_b += timedelta(days=1)
                         break
                 cursor_b -= timedelta(days=1)
             plan_b = build_plan(name, start, end, holiday_days, leave_b, cursor_b, end)
 
             best = max(plan_a, plan_b, key=lambda p: p["total_rest_days"])
-            # 该方案比上一档更优才保留（避免冗余）
             if best["total_rest_days"] > holiday_days:
                 best["leave_count"] = n_leave
                 plans.append(best)
 
-    return {"year": year, "max_leave_days": max_leave_days, "plans": plans}
+    return {"year": year, "region": region, "max_leave_days": max_leave_days, "plans": plans}
 
 
 # 导出：LangGraph 绑定用的工具列表
@@ -314,6 +351,7 @@ TOOL_GUIDE = f"""今天是 {date.today().isoformat()}。
 - 查询香港公众假期 → get_holidays_hk
 - 问两地共同/接近的假期 → find_common_breaks
 - 算距离某日期还有几天 → days_until
-- 问「怎么请假连休/拼假最划算」→ suggest_leave_stacking
+- 问「怎么请假连休/拼假最划算」（内地或香港）→ suggest_leave_stacking
+  参数 region="cn" 或 "hk"，默认 "cn"
 - 数据覆盖：内地 2025-2026，香港 2025-2027。
 """
