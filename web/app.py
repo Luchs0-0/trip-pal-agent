@@ -2,8 +2,10 @@
 
 作用：接收前端（浏览器页面）发来的问题，调用 agent，返回回答 + 工具轨迹。
 
-多轮记忆：前端每次请求带一个 session_id（存 localStorage），
-后端用 SESSIONS 字典保存每个会话的对话历史，实现跨轮记忆。
+多轮记忆：
+  - 前端每次请求带 session_id（存 localStorage）
+  - 后端按 session_id 保存对话历史，实现跨轮记忆
+  - 历史持久化到磁盘（web/sessions/*.json），重启服务不丢
 
 启动方式：
     cd trip-pal
@@ -13,6 +15,7 @@
 """
 from __future__ import annotations
 
+import json
 import sys
 import uuid
 from pathlib import Path
@@ -28,9 +31,44 @@ from trip_pal.graph import chat
 
 app = FastAPI(title="TripPal", description="两地行程与节假日助手")
 
-# 会话历史存储：{session_id: [历史消息列表]}
-# 简单实现（进程内字典）。生产环境应换 Redis/数据库，学习项目够用。
-SESSIONS: dict[str, list] = {}
+# ---------------------------------------------------------------------------
+# 会话存储：按 session_id 保存对话历史，持久化到磁盘
+# ---------------------------------------------------------------------------
+SESSIONS_DIR = Path(__file__).resolve().parent / "sessions"
+SESSIONS_DIR.mkdir(exist_ok=True)
+
+
+def _session_path(sid: str) -> Path:
+    """每个会话一个 JSON 文件：web/sessions/{sid}.json"""
+    return SESSIONS_DIR / f"{sid}.json"
+
+
+def load_history(sid: str) -> list:
+    """从磁盘加载某会话的历史（统一格式 dict 列表，无则空列表）。"""
+    path = _session_path(sid)
+    if not path.exists():
+        return []
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+        return data.get("messages", [])
+    except (OSError, ValueError):
+        return []
+
+
+def save_history(sid: str, messages: list) -> None:
+    """把某会话的历史写入磁盘（消息已是可 JSON 化的 dict 列表）。"""
+    path = _session_path(sid)
+    path.write_text(
+        json.dumps({"messages": messages}, ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
+
+
+def delete_history(sid: str) -> None:
+    """删除某会话的历史文件（配合前端「清空」按钮）。"""
+    path = _session_path(sid)
+    if path.exists():
+        path.unlink()
 
 
 # ---- 请求/响应模型（pydantic 自动校验）----
@@ -49,19 +87,53 @@ class AskResponse(BaseModel):
     trace: list[dict]
 
 
+class HistoryResponse(BaseModel):
+    """返回某会话的对话历史（供前端刷新后恢复界面）"""
+
+    messages: list[dict]  # [{"role": "user"/"assistant", "content": "..."}, ...]
+
+
+class ClearResponse(BaseModel):
+    """清空会话的响应体"""
+
+    session_id: str
+    cleared: bool
+
+
 # ---- 核心路由：处理用户问题 ----
 @app.post("/ask", response_model=AskResponse)
 def handle_ask(req: AskRequest) -> AskResponse:
     """接收问题 → 调 agent → 返回回答和工具轨迹（含多轮记忆）。"""
     # 会话管理：有 session_id 用它的历史，没有则新建
     sid = req.session_id or uuid.uuid4().hex
-    history = SESSIONS.setdefault(sid, [])
+    history = load_history(sid)
 
     # 带历史调用 agent，拿回更新后的历史
     answer, trace, history = chat(history, req.question)
-    SESSIONS[sid] = history  # 存回会话存储
+    save_history(sid, history)  # 持久化到磁盘
 
     return AskResponse(session_id=sid, answer=answer, trace=trace)
+
+
+# ---- 历史查询：前端刷新后向后端要回对话记录 ----
+@app.get("/history", response_model=HistoryResponse)
+def get_history(session_id: str) -> HistoryResponse:
+    """根据 session_id 返回该会话的对话历史（含工具轨迹，供界面恢复）。"""
+    history = load_history(session_id)
+    # 统一格式下，每条消息已是 {role, content, trace}，直接给前端
+    msgs = [
+        {"role": m.get("role", ""), "content": m.get("content", ""), "trace": m.get("trace", [])}
+        for m in history
+    ]
+    return HistoryResponse(messages=msgs)
+
+
+# ---- 清空会话：配合前端「清空」按钮 ----
+@app.post("/clear", response_model=ClearResponse)
+def clear_session(session_id: str) -> ClearResponse:
+    """删除某会话的历史，让「清空」按钮真正清掉后端记忆。"""
+    delete_history(session_id)
+    return ClearResponse(session_id=session_id, cleared=True)
 
 
 # ---- 静态页面：让浏览器直接访问 index.html ----

@@ -98,6 +98,29 @@ function getSessionId() {
   return sid;
 }
 
+// 页面加载时：从后端要回该会话的历史，恢复对话界面
+async function loadHistory() {
+  try {
+    const resp = await fetch('/history?session_id=' + encodeURIComponent(getSessionId()));
+    if (!resp.ok) return;
+    const data = await resp.json();
+    if (data.messages && data.messages.length) {
+      // 有历史：先清掉默认欢迎语，再重新显示欢迎语 + 历史（界面保持一致）
+      messagesEl.innerHTML = '';
+      addMessage('bot', '你好！我是 TripPal 👋 可以问我：\n- "2026 年国庆内地放几天假？"\n- "香港 2027 年春节是哪几天？"\n- "内地和香港下个共同长假期是什么时候？"', null);
+      data.messages.forEach((m) => {
+        // 历史里带 trace，恢复工具调用展示
+        addMessage(m.role === 'user' ? 'user' : 'bot', m.content, m.trace || null);
+      });
+    }
+  } catch (e) {
+    // 网络异常时静默失败，保留默认欢迎语
+  }
+}
+
+// 页面初始化：恢复历史对话
+loadHistory();
+
 // 发送问题
 async function sendQuestion() {
   const q = inputEl.value.trim();
@@ -124,8 +147,15 @@ async function sendQuestion() {
     sendBtn.textContent = '发送';
   }
 }
-// 清空历史
-function clearHistory() {
+// 清空历史：同时清界面 + 清后端记忆（调 /clear）
+async function clearHistory() {
+  // 1. 清后端记忆（删除该会话的持久化历史）
+  try {
+    await fetch('/clear?session_id=' + encodeURIComponent(getSessionId()), { method: 'POST' });
+  } catch (e) {
+    // 网络异常不阻塞界面清空
+  }
+  // 2. 清界面，恢复欢迎语
   messagesEl.innerHTML = '';
   addMessage('bot', '你好！我是 TripPal 👋 可以问我：\n- "2026 年国庆内地放几天假？"\n- "香港 2027 年春节是哪几天？"\n- "内地和香港下个共同长假期是什么时候？"', null);
 }
