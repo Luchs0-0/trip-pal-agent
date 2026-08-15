@@ -112,11 +112,13 @@ def parse_cn(html_text: str, year: int) -> list[dict]:
         if m_to:
             last_month = int(m_to.group(1)) if m_to.group(1) else first[0]
             last = (last_month, int(m_to.group(2)))
-        # 找出调休上班日（"X月X日上班"，前括号内或直接接上班）
-        workdays = [
-            f"{year}-{int(m2):02d}-{int(d2):02d}"
-            for (m2, d2) in re.findall(r"(\d{1,2})月(\d{1,2})日[（(][^）)]*[）)]?上班", detail)
-        ]
+        # 找出调休上班日（如"2月14日（周六）、2月28日（周六）上班"）
+        # 注意：多个补班日用顿号连接，第一个日期后面可能不直接跟"上班"，
+        # 所以取"上班"所在句子的整体片段，提取其中所有日期
+        workdays: list[str] = []
+        for seg in re.findall(r"[^。；]*上班", detail):
+            for (m2, d2) in re.findall(r"(\d{1,2})月(\d{1,2})日", seg):
+                workdays.append(f"{year}-{int(m2):02d}-{int(d2):02d}")
         holidays.append(
             {
                 "name": name,
