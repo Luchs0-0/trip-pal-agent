@@ -25,6 +25,8 @@ web/sessions/
 .vscode/
 *.swp
 
-# 本地 demo 素材（不入库）
-demo_video/
+# 本地 demo 素材（不入库，最终成品除外）
+demo_video/*
+!demo_video/trippal_demo_final.mp4
+!demo_video/trippal_demo_subtitles.srt
 demo_recording_*.png

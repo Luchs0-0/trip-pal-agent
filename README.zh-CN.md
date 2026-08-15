@@ -32,6 +32,19 @@
 
 ---
 
+## 🎬 演示视频
+
+85 秒 Web UI 完整演示——节假日查询、两地共同假期匹配、拼假方案生成：
+
+<p align="center">
+  <video src="demo_video/trippal_demo_final.mp4" controls width="100%" style="max-width:720px"></video>
+</p>
+
+- 🎥 **视频**：`demo_video/trippal_demo_final.mp4`（84 秒，英文旁白 + 内嵌英文字幕）
+- 📝 **字幕文件**：[trippal_demo_subtitles.srt](demo_video/trippal_demo_subtitles.srt)
+
+---
+
 ## 🚀 快速开始
 
 ### 环境要求

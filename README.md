@@ -32,6 +32,19 @@ Ask it "How many days is the 2026 National Day holiday?" or "When is the next co
 
 ---
 
+## 🎬 Demo
+
+A 85-second walkthrough of the Web UI — holiday lookup, HK/CN common-break matching, and leave-stacking plans:
+
+<p align="center">
+  <video src="demo_video/trippal_demo_final.mp4" controls width="100%" style="max-width:720px"></video>
+</p>
+
+- 🎥 **Video**: `demo_video/trippal_demo_final.mp4` (84s, with English narration & burned-in subtitles)
+- 📝 **Subtitles**: [trippal_demo_subtitles.srt](demo_video/trippal_demo_subtitles.srt) (standalone copy)
+
+---
+
 ## 🚀 Quick Start
 
 ### Requirements
