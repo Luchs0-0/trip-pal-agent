@@ -190,4 +190,10 @@ trip-pal-agent/
 
 ---
 
+## 📄 License
+
+Released under the [MIT License](LICENSE). © 2026 Zhou Nongshen (Nathan)
+
+---
+
 *TripPal v0.2 · 2026-08*

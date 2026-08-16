@@ -190,4 +190,10 @@ trip-pal-agent/
 
 ---
 
+## 📄 开源协议
+
+基于 [MIT License](LICENSE) 开源。© 2026 周能深（Nathan）
+
+---
+
 *TripPal v0.2 · 2026-08*
