@@ -24,10 +24,11 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from fastapi import FastAPI
+from fastapi.responses import StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
-from trip_pal.graph import chat
+from trip_pal.graph import chat, stream_chat
 
 app = FastAPI(title="TripPal", description="两地行程与节假日助手")
 
@@ -100,19 +101,43 @@ class ClearResponse(BaseModel):
     cleared: bool
 
 
-# ---- 核心路由：处理用户问题 ----
-@app.post("/ask", response_model=AskResponse)
-def handle_ask(req: AskRequest) -> AskResponse:
-    """接收问题 → 调 agent → 返回回答和工具轨迹（含多轮记忆）。"""
-    # 会话管理：有 session_id 用它的历史，没有则新建
+# ---- 核心路由：处理用户问题（SSE 流式）----
+@app.post("/ask")
+async def handle_ask(req: AskRequest):
+    """接收问题 → 流式调 agent → 以 SSE 逐步推送事件。
+
+    事件流（每行 data: <json>，空行分隔）：
+      {"type":"tool_start","tool":...,"args":...}
+      {"type":"tool_result","tool":...,"result":...}
+      {"type":"token","text":...}
+      {"type":"done","answer":...,"trace":[...]}
+    前端用 fetch + ReadableStream 逐块读取，实时渲染。
+    """
     sid = req.session_id or uuid.uuid4().hex
     history = load_history(sid)
 
-    # 带历史调用 agent，拿回更新后的历史
-    answer, trace, history = chat(history, req.question)
-    save_history(sid, history)  # 持久化到磁盘
+    async def event_gen_with_save():
+        nonlocal history
+        yield f"data: {json.dumps({'type': 'session', 'session_id': sid})}\n\n"
+        final_answer = ""
+        final_trace: list[dict] = []
+        async for event in stream_chat(history, req.question):
+            if event.get("type") == "done":
+                final_answer = event.get("answer", "")
+                final_trace = event.get("trace", [])
+            yield f"data: {json.dumps(event, ensure_ascii=False)}\n\n"
+        # 持久化：旧历史 + 本轮（user 问题 + assistant 完整回答，带 trace）
+        history = history + [
+            {"role": "user", "content": req.question, "trace": []},
+            {"role": "assistant", "content": final_answer, "trace": final_trace},
+        ]
+        save_history(sid, history)
 
-    return AskResponse(session_id=sid, answer=answer, trace=trace)
+    return StreamingResponse(
+        event_gen_with_save(),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
 
 
 # ---- 历史查询：前端刷新后向后端要回对话记录 ----

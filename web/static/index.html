@@ -63,22 +63,27 @@ const clearBtn = document.getElementById('clear');
 function addMessage(role, content, trace) {
   const div = document.createElement('div');
   div.className = 'msg ' + (role === 'user' ? 'user' : 'bot');
-  div.textContent = content;
 
-  // 如果带工具轨迹，展示出来
+  // 内容区独立成 .content 子元素：流式更新时可以单独改它
+  const contentEl = document.createElement('div');
+  contentEl.className = 'content';
+  contentEl.textContent = content;
+  div.appendChild(contentEl);
+
+  // 工具轨迹容器：始终创建（流式时往里实时填，历史加载时填已有内容）
+  const traceEl = document.createElement('div');
+  traceEl.className = 'trace';
   if (trace && trace.length) {
-    const t = document.createElement('div');
-    t.className = 'trace';
-    t.textContent = '🧠 工具调用过程：';
+    traceEl.textContent = '🧠 工具调用过程：';
     trace.forEach((step, i) => {
       const s = document.createElement('div');
       const args = Object.entries(step.args || {})
         .map(([k, v]) => `${k}=${v}`).join(', ');
       s.innerHTML = `&nbsp;&nbsp;${i + 1}. <span class="step">${step.tool}(${args})</span>`;
-      t.appendChild(s);
+      traceEl.appendChild(s);
     });
-    div.appendChild(t);
   }
+  div.appendChild(traceEl);
 
   messagesEl.appendChild(div);
   messagesEl.scrollTop = messagesEl.scrollHeight; // 滚动到底部
@@ -168,6 +173,14 @@ async function sendQuestion(questionText) {
   sendBtn.disabled = true;
   sendBtn.textContent = '思考中…';
 
+  // 先放一个"正在回答"的 bot 占位，流式更新它
+  const botEl = addMessage('bot', '', null);
+  const answerEl = botEl.querySelector('.content');
+  const traceEl = botEl.querySelector('.trace');
+  let traceHtml = '';
+  let answerText = '';
+  let lastTrace = null;
+
   try {
     const resp = await fetch('/ask', {
       method: 'POST',
@@ -175,8 +188,55 @@ async function sendQuestion(questionText) {
       body: JSON.stringify({ session_id: getSessionId(), question: q }),
     });
     if (!resp.ok) throw new Error('HTTP ' + resp.status);
-    const data = await resp.json();
-    addMessage('bot', data.answer, data.trace);
+
+    // 关键：用 ReadableStream 逐块读 SSE（不是一次性 resp.json()）
+    const reader = resp.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+
+      // SSE 事件以空行分隔，逐条解析
+      const events = buffer.split('\n\n');
+      buffer = events.pop(); // 最后一段可能不完整，留到下次
+
+      for (const ev of events) {
+        const line = ev.trim();
+        if (!line.startsWith('data:')) continue;
+        let data;
+        try {
+          data = JSON.parse(line.slice(5).trim());
+        } catch (e) { continue; }
+
+        if (data.type === 'tool_start') {
+          // 实时显示"正在调用工具"（首次填充时加标题）
+          if (!traceHtml) traceHtml = '🧠 工具调用过程：';
+          traceHtml += `<div class="step">🔧 调用 ${data.tool}(${JSON.stringify(data.args)})…</div>`;
+          if (traceEl) traceEl.innerHTML = traceHtml;
+          sendBtn.textContent = '调用工具中…';
+        } else if (data.type === 'tool_result') {
+          const res = (data.result || '').slice(0, 200);
+          traceHtml += `<div class="res">✓ ${data.tool} → ${res}</div>`;
+          if (traceEl) traceEl.innerHTML = traceHtml;
+        } else if (data.type === 'token') {
+          // 打字机效果：逐段追加回答
+          answerText += data.text;
+          if (answerEl) answerEl.textContent = answerText;
+          sendBtn.textContent = '回答中…';
+          messagesEl.scrollTop = messagesEl.scrollHeight;
+        } else if (data.type === 'done') {
+          answerText = data.answer || answerText;
+          lastTrace = data.trace || null;
+          if (answerEl) answerEl.textContent = answerText;
+        }
+      }
+    }
+
+    // 流结束：确保回答完整显示（tool_start/result 已实时渲染到 trace）
+    if (answerEl) answerEl.textContent = answerText;
   } catch (e) {
     addMessage('bot', '出错了：' + e.message, null);
     addMessage('bot', '请确认后端已启动（uvicorn web.app:app --reload --port 8000）', null);

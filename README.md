@@ -27,7 +27,7 @@ Ask it "How many days is the 2026 National Day holiday?" or "When is the next co
 | 📅 Date Calc | Days until a given date | "How many days until the next National Day?" |
 | ✂️ Leave Stacking | CN + HK stacking plans (auto-skips makeup days, leverages weekends) | "How to stack leave for the 2026 National Day?" / "HK Christmas leave stacking?" |
 | 🧠 Multi-turn Memory | Session history persisted to disk, survives refresh/restart | Follow-up "What about HK?" is understood in context |
-| 🌐 Web UI | Chat UI with tool-call trace & quick-ask buttons | — |
+| 🌐 Web UI | Chat UI with **live tool-call streaming** (SSE) & quick-ask buttons | — |
 | 💬 Interactive CLI | Terminal multi-turn chat | — |
 
 ---
@@ -173,7 +173,7 @@ trip-pal-agent/
 - [x] Leave stacking for CN + HK (traditional/simplified & alias matching)
 - [x] LangGraph agent loop (multi-step tool calls)
 - [x] Multi-turn memory (disk-persisted, survives refresh/restart)
-- [x] Web UI with tool-call trace & quick-ask buttons
+- [x] Web UI with live tool-call streaming (SSE) & quick-ask buttons
 - [x] Interactive CLI
 - [ ] 2027 CN data (once officially released)
 - [x] Unit tests (14 pytest) + GitHub Actions CI

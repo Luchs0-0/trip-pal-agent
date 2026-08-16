@@ -148,16 +148,11 @@ def ask_with_trace(question: str) -> tuple[str, list[dict]]:
     result = agent.invoke({"messages": [{"role": "user", "content": question}]})
     messages = result.get("messages", [])
 
-    # 遍历完整消息历史，区分三类消息：
-    #   1) ai + tool_calls   → 模型"要求调用工具"（记录到 trace）
-    #   2) tool              → 工具执行结果（回填到 trace 对应项）
-    #   3) ai + 无 tool_calls → 模型的最终回答
     trace: list[dict] = []
     answer = "（Agent 没有返回有效回答）"
     for msg in messages:
         mtype = getattr(msg, "type", "")
         if mtype == "ai" and getattr(msg, "tool_calls", None):
-            # 模型可能一次请求调用多个工具，逐个记录
             for tc in msg.tool_calls:
                 trace.append(
                     {
@@ -167,17 +162,100 @@ def ask_with_trace(question: str) -> tuple[str, list[dict]]:
                     }
                 )
         elif mtype == "tool":
-            # 工具结果消息带 name（哪个工具）和 content（返回内容）。
-            # 用 reversed 从后往前找"同名且尚未回填"的 trace 项，
-            # 因为同一个工具可能被调用多次，要回填到最近那一次。
             for item in reversed(trace):
                 if item["tool"] == msg.name and item["result"] == "（等待执行）":
                     item["result"] = str(msg.content)[:500]
                     break
         elif mtype == "ai" and not getattr(msg, "tool_calls", None):
-            # 不带 tool_calls 的 AI 消息 = 最终回答（循环终止）
             answer = str(msg.content)
     return answer, trace
+
+
+async def stream_chat(history: list, question: str):
+    """流式多轮对话：逐步产出事件，供 Web 端实时展示。
+
+    与 chat() 不同，这里用 agent.astream() 流式执行，边跑边 yield。
+
+    事件类型：
+      {"type": "tool_start", "tool": "...", "args": {...}}
+          —— 模型决定调用某工具（前端显示"正在调用…"）
+      {"type": "tool_result", "tool": "...", "result": "..."}
+          —— 工具执行完成（前端显示结果摘要）
+      {"type": "token", "text": "..."}
+          —— 回答内容（节点级：一次给全；opencode-go 端点不逐字流）
+      {"type": "done", "answer": "...", "trace": [...]}
+          —— 全部完成（前端把完整回答 + 轨迹存入历史）
+
+    实测说明：opencode-go 端点支持 SSE streaming，但 deepseek-v4-flash
+    是推理模型，「有工具调用」时 LangChain 的 messages 模式不吐 content，
+    所以这里用节点级流（astream 默认模式）：工具事件实时 + 回答一次到位。
+    这样只调用一次模型，不浪费配额。
+    """
+    from langchain_core.messages import AIMessage, HumanMessage
+
+    agent = build_agent()
+
+    # 1) 历史转 LangChain 消息（与 chat() 相同：只用 role+content）
+    lc_messages = []
+    for m in history:
+        if m.get("role") == "user":
+            lc_messages.append(HumanMessage(content=m.get("content", "")))
+        elif m.get("role") == "assistant":
+            lc_messages.append(AIMessage(content=m.get("content", "")))
+    lc_messages.append(HumanMessage(content=question))
+
+    # 2) 流式执行（节点粒度）：astream() 每跑完一个节点 yield 一次
+    #    实测 chunk 结构：
+    #      {"agent": {"messages": [AIMessage(tool_calls=...)]}}  ← 要调工具
+    #      {"tools": {"messages": [ToolMessage(...)]}}          ← 工具结果
+    #      {"agent": {"messages": [AIMessage(最终回答)]}}        ← 完成
+    #    注意：带 tool_calls 的 ai 消息可能带 content（"我来查一下"），
+    #    那不是最终回答，必须跳过。
+    trace: list[dict] = []
+    answer_parts: list[str] = []
+    async for chunk in agent.astream({"messages": lc_messages}):
+        if not isinstance(chunk, dict):
+            continue
+        # 模型输出节点（agent）
+        inner = chunk.get("agent")
+        if isinstance(inner, dict):
+            for msg in inner.get("messages", []):
+                mtype = getattr(msg, "type", "")
+                if mtype == "ai" and getattr(msg, "tool_calls", None):
+                    for tc in msg.tool_calls:
+                        entry = {
+                            "tool": tc.get("name", ""),
+                            "args": tc.get("args", {}),
+                            "result": "（等待执行）",
+                        }
+                        trace.append(entry)
+                        yield {
+                            "type": "tool_start",
+                            "tool": entry["tool"],
+                            "args": entry["args"],
+                        }
+                elif mtype == "ai" and not getattr(msg, "tool_calls", None):
+                    if msg.content:
+                        answer_parts.append(str(msg.content))
+                        yield {"type": "token", "text": str(msg.content)}
+        # 工具执行节点（tools）
+        tools_inner = chunk.get("tools")
+        if isinstance(tools_inner, dict):
+            for msg in tools_inner.get("messages", []):
+                if getattr(msg, "type", "") == "tool":
+                    for entry in reversed(trace):
+                        if entry["tool"] == msg.name and entry["result"] == "（等待执行）":
+                            entry["result"] = str(msg.content)[:500]
+                            yield {
+                                "type": "tool_result",
+                                "tool": msg.name,
+                                "result": entry["result"],
+                            }
+                            break
+
+    # 3) 全部完成：拼出完整回答，带 trace 一起收尾
+    answer = "".join(answer_parts) or "（Agent 没有返回有效回答）"
+    yield {"type": "done", "answer": answer, "trace": trace}
 
 
 if __name__ == "__main__":
