@@ -58,9 +58,10 @@ A 85-second walkthrough of the Web UI — holiday lookup, HK/CN common-break mat
 git clone https://github.com/zhounongshen/trip-pal-agent.git
 cd trip-pal-agent
 
-# create venv & install deps with uv
+# create venv & install deps + the project itself (editable) with uv
 uv venv --python 3.12 .venv
 uv pip install -r requirements.txt
+uv pip install -e .
 ```
 
 ### 2. Prepare Data
@@ -92,7 +93,7 @@ OPENAI_MODEL=deepseek-chat
 **Web UI (recommended)**
 
 ```bash
-PYTHONPATH=src .venv/bin/uvicorn web.app:app --reload --port 8000
+.venv/bin/uvicorn web.app:app --reload --port 8000
 ```
 
 Open in browser: <http://127.0.0.1:8000>
@@ -100,14 +101,16 @@ Open in browser: <http://127.0.0.1:8000>
 **Interactive CLI**
 
 ```bash
-PYTHONPATH=src .venv/bin/python -m trip_pal.cli
+.venv/bin/python -m trip_pal.cli
 ```
 
 **One-shot Question**
 
 ```bash
-PYTHONPATH=src .venv/bin/python -m trip_pal.cli "2026年国庆内地放几天假？"
+.venv/bin/python -m trip_pal.cli "2026年国庆内地放几天假？"
 ```
+
+> Since the project is installed editable, `PYTHONPATH=src` is no longer needed — `trip_pal` resolves from the venv directly. Tests run the same way: `.venv/bin/pytest` (or `PYTHONPATH=src .venv/bin/python -m pytest tests/`).
 
 ---
 
@@ -177,6 +180,8 @@ trip-pal-agent/
 - [x] Interactive CLI
 - [ ] 2027 CN data (once officially released)
 - [x] Unit tests (14 pytest) + GitHub Actions CI
+- [x] Standard packaging via `pyproject.toml` (editable install, no `PYTHONPATH` needed)
+- [x] Timezone-hardened date logic (all "today" computations pinned to UTC+8)
 - [x] Live demo on GitHub Pages
 - [ ] Enhanced HK-CN holiday comparison
 

@@ -9,11 +9,12 @@
     - 显示工具调用轨迹：你能看到 agent 每一步调了什么工具、参数、结果
     - 输入 exit / quit / 退出 结束
 """
+
 from __future__ import annotations
 
 import sys
 
-from .graph import chat, ask_with_trace
+from .graph import ask_with_trace, chat
 
 
 def _print_trace(trace: list[dict]) -> None:

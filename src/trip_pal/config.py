@@ -6,10 +6,10 @@
      （~/.local/share/opencode/auth.json 的 opencode-go.key），
      已登录 opencode Go 订阅的用户无需额外配置。
 """
+
 from __future__ import annotations
 
 import json
-import os
 from pathlib import Path
 
 from dotenv import load_dotenv

@@ -10,6 +10,7 @@
 
 对外提供 build_agent()：返回一个可调用的 agent 对象。
 """
+
 from __future__ import annotations
 
 from langchain_openai import ChatOpenAI
@@ -244,7 +245,10 @@ async def stream_chat(history: list, question: str):
             for msg in tools_inner.get("messages", []):
                 if getattr(msg, "type", "") == "tool":
                     for entry in reversed(trace):
-                        if entry["tool"] == msg.name and entry["result"] == "（等待执行）":
+                        if (
+                            entry["tool"] == msg.name
+                            and entry["result"] == "（等待执行）"
+                        ):
                             entry["result"] = str(msg.content)[:500]
                             yield {
                                 "type": "tool_result",

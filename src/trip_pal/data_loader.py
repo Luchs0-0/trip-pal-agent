@@ -5,6 +5,7 @@
   - 提供统一的查询接口，工具层不关心数据文件细节；
   - 将来若换实时数据源，只需改这个模块，不影响 tools / graph。
 """
+
 from __future__ import annotations
 
 import json

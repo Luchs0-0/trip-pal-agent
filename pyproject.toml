@@ -1,0 +1,50 @@
+[project]
+name = "trip-pal"
+version = "1.0.0"
+description = "香港/内地两地行程与节假日助手 Agent（LangGraph + FastAPI）"
+readme = "README.md"
+license = { file = "LICENSE" }
+authors = [{ name = "zhounongshen" }]
+requires-python = ">=3.11"
+dependencies = [
+    "langgraph>=0.2.0",
+    "langchain-core>=0.3.0",
+    "langchain-openai>=0.2.0",
+    "openai>=1.40.0",
+    "pydantic>=2.0.0",
+    "pydantic-settings>=2.0.0",
+    "python-dotenv>=1.0.0",
+    "fastapi>=0.110.0",
+    "uvicorn>=0.29.0",
+    "requests>=2.31.0",
+    "opencc-python-reimplemented>=0.1.7",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "ruff>=0.8",
+]
+
+[project.scripts]
+trip-pal = "trip_pal.cli:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/trip_pal"]
+
+# 让 pytest 直接找到 src/ 下的包，无需手动设 PYTHONPATH
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+# 默认规则（E/F）+ isort 排序；DTZ 等行为类规则按需再加
+select = ["E", "F", "I"]

@@ -13,6 +13,7 @@
 
 然后浏览器打开 http://127.0.0.1:8000
 """
+
 from __future__ import annotations
 
 import json
@@ -28,7 +29,7 @@ from fastapi.responses import StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
-from trip_pal.graph import chat, stream_chat
+from trip_pal.graph import stream_chat
 
 app = FastAPI(title="TripPal", description="两地行程与节假日助手")
 
@@ -147,7 +148,11 @@ def get_history(session_id: str) -> HistoryResponse:
     history = load_history(session_id)
     # 统一格式下，每条消息已是 {role, content, trace}，直接给前端
     msgs = [
-        {"role": m.get("role", ""), "content": m.get("content", ""), "trace": m.get("trace", [])}
+        {
+            "role": m.get("role", ""),
+            "content": m.get("content", ""),
+            "trace": m.get("trace", []),
+        }
         for m in history
     ]
     return HistoryResponse(messages=msgs)
@@ -163,4 +168,8 @@ def clear_session(session_id: str) -> ClearResponse:
 
 # ---- 静态页面：让浏览器直接访问 index.html ----
 # 把 web/static 目录挂载到根路径，访问 / 就是 index.html
-app.mount("/", StaticFiles(directory=Path(__file__).resolve().parent / "static", html=True), name="static")
+app.mount(
+    "/",
+    StaticFiles(directory=Path(__file__).resolve().parent / "static", html=True),
+    name="static",
+)

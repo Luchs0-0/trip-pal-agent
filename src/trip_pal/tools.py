@@ -11,13 +11,23 @@
   3. 返回结构化：返回 JSON 友好的 dict，让模型容易读；
   4. 边界安全：只读查询，不写数据。
 """
+
 from __future__ import annotations
 
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, timedelta, timezone
+
+# 固定使用香港时区（UTC+8）：服务面向香港/内地用户，
+# 无论部署在哪个时区，"今天"都以 UTC+8 为准，避免日期边界错误。
+HKT = timezone(timedelta(hours=8))
+
+
+def today_hk() -> date:
+    """返回香港时区（UTC+8）的今天。"""
+    return datetime.now(HKT).date()
 
 from langchain_core.tools import tool
 
-from .data_loader import get_cn_holidays, get_hk_holidays, available_years
+from .data_loader import available_years, get_cn_holidays, get_hk_holidays
 
 
 # ---------------------------------------------------------------------------
@@ -42,7 +52,8 @@ def get_holidays_cn(year: int, month: int | None = None) -> dict:
         }
     if month is not None:
         holidays = [
-            h for h in holidays
+            h
+            for h in holidays
             if int(h["start"][5:7]) == month or int(h["end"][5:7]) == month
         ]
     return {"year": year, "region": "cn", "holidays": holidays}
@@ -121,7 +132,9 @@ def find_common_breaks(year: int) -> dict:
                             "hk_holidays_in_window": [
                                 x["name"]
                                 for x in hk
-                                if overlap_start <= date.fromisoformat(x["date"]) <= overlap_end
+                                if overlap_start
+                                <= date.fromisoformat(x["date"])
+                                <= overlap_end
                             ],
                         }
                     )
@@ -150,7 +163,7 @@ def days_until(target_date: str) -> dict:
         target = date.fromisoformat(target_date)
     except ValueError:
         return {"error": f"日期格式应为 YYYY-MM-DD，收到 {target_date!r}"}
-    today = date.today()
+    today = today_hk()
     delta = (target - today).days
     return {
         "today": today.isoformat(),
@@ -179,7 +192,7 @@ def next_holiday(from_date: str = "") -> dict:
         except ValueError:
             return {"error": f"日期格式应为 YYYY-MM-DD，收到 {from_date!r}"}
     else:
-        anchor = date.today()
+        anchor = today_hk()
 
     result: dict = {"from": anchor.isoformat(), "cn": None, "hk": None}
 
@@ -283,14 +296,16 @@ def suggest_leave_stacking(
             if festival or days >= 3:
                 targets.append((h["name"], start, end, days))
         makeup_days = {
-            date.fromisoformat(d)
-            for h in raw
-            for d in h.get("makeup_workdays", [])
+            date.fromisoformat(d) for h in raw for d in h.get("makeup_workdays", [])
         }
     else:  # hk
         raw = get_hk_holidays(year)
         if not raw:
-            return {"year": year, "note": f"暂无 {year} 年香港公众假期数据", "plans": []}
+            return {
+                "year": year,
+                "note": f"暂无 {year} 年香港公众假期数据",
+                "plans": [],
+            }
         # 香港：单日假期，先把连续日期合并成区间
         hk_dates = sorted(date.fromisoformat(h["date"]) for h in raw)
         ranges: list[tuple[date, date]] = []
@@ -303,8 +318,7 @@ def suggest_leave_stacking(
         for start, end in ranges:
             # 收集该区间内所有节日名（合并区间可能含多个节日，如年初一~年初四）
             names_in_range = [
-                h["name"] for h in raw
-                if start <= date.fromisoformat(h["date"]) <= end
+                h["name"] for h in raw if start <= date.fromisoformat(h["date"]) <= end
             ]
             if festival:
                 # 香港节日名是繁体（如「聖誕節」），转简体后匹配
@@ -413,7 +427,12 @@ def suggest_leave_stacking(
                 best["leave_count"] = n_leave
                 plans.append(best)
 
-    return {"year": year, "region": region, "max_leave_days": max_leave_days, "plans": plans}
+    return {
+        "year": year,
+        "region": region,
+        "max_leave_days": max_leave_days,
+        "plans": plans,
+    }
 
 
 # 导出：LangGraph 绑定用的工具列表
@@ -427,7 +446,7 @@ ALL_TOOLS = [
 ]
 
 # 给模型看的工具使用指引（拼进系统提示）
-TOOL_GUIDE = f"""今天是 {date.today().isoformat()}。
+TOOL_GUIDE = f"""今天是 {today_hk().isoformat()}。
 
 [工具使用指引]
 - 查询内地节假日 → get_holidays_cn

@@ -58,9 +58,10 @@
 git clone https://github.com/zhounongshen/trip-pal-agent.git
 cd trip-pal-agent
 
-# 用 uv 创建虚拟环境并安装依赖
+# 用 uv 创建虚拟环境，安装依赖 + 项目本体（可编辑模式）
 uv venv --python 3.12 .venv
 uv pip install -r requirements.txt
+uv pip install -e .
 ```
 
 ### 2. 准备数据
@@ -92,7 +93,7 @@ OPENAI_MODEL=deepseek-chat
 **Web UI（推荐）**
 
 ```bash
-PYTHONPATH=src .venv/bin/uvicorn web.app:app --reload --port 8000
+.venv/bin/uvicorn web.app:app --reload --port 8000
 ```
 
 浏览器打开 <http://127.0.0.1:8000>
@@ -100,14 +101,16 @@ PYTHONPATH=src .venv/bin/uvicorn web.app:app --reload --port 8000
 **交互式 CLI**
 
 ```bash
-PYTHONPATH=src .venv/bin/python -m trip_pal.cli
+.venv/bin/python -m trip_pal.cli
 ```
 
 **单次问答**
 
 ```bash
-PYTHONPATH=src .venv/bin/python -m trip_pal.cli "2026年国庆内地放几天假？"
+.venv/bin/python -m trip_pal.cli "2026年国庆内地放几天假？"
 ```
+
+> 项目已通过 pyproject.toml 以可编辑模式安装，`trip_pal` 直接从虚拟环境解析，**不再需要 `PYTHONPATH=src`**。测试同理：`.venv/bin/pytest`（或 `PYTHONPATH=src .venv/bin/python -m pytest tests/`）。
 
 ---
 
@@ -177,6 +180,8 @@ trip-pal-agent/
 - [x] 交互式 CLI
 - [ ] 2027 内地数据（官方发布后补）
 - [x] 单元测试（14 个 pytest）+ GitHub Actions CI
+- [x] 基于 `pyproject.toml` 的标准打包（可编辑安装，无需 `PYTHONPATH`）
+- [x] 日期逻辑时区加固（所有"今天"计算固定为 UTC+8）
 - [x] GitHub Pages 在线演示
 - [ ] 香港共同假期对比增强
 

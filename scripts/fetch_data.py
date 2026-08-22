@@ -11,6 +11,7 @@
   python scripts/fetch_data.py            # 抓取所有配置的年份
   python scripts/fetch_data.py --region hk --years 2027
 """
+
 from __future__ import annotations
 
 import argparse
@@ -34,7 +35,10 @@ HEADERS = {
 # ---------------------------------------------------------------------------
 # 配置：每个来源的年份 → URL
 # ---------------------------------------------------------------------------
-HK_URLS = {year: f"https://www.gov.hk/tc/about/abouthk/holiday/{year}.htm" for year in (2025, 2026, 2027)}
+HK_URLS = {
+    year: f"https://www.gov.hk/tc/about/abouthk/holiday/{year}.htm"
+    for year in (2025, 2026, 2027)
+}
 
 CN_URLS = {
     2025: "https://www.gov.cn/zhengce/zhengceku/202411/content_6986383.htm",
@@ -56,10 +60,13 @@ def fetch(url: str) -> str:
 # 香港：解析 GovHK 表格（<tr> 行：节日名 | 日期 | 星期）
 # ---------------------------------------------------------------------------
 def parse_hk(html_text: str, year: int) -> list[dict]:
-    rows = re.findall(r"<tr[^>]*>(.*?)</tr>", html_text, re.S)
+    rows = re.findall(r"<tr[^>]*>(.*?)</tr>", html_text, re.DOTALL)
     holidays: list[dict] = []
     for row in rows:
-        cells = [re.sub(r"<[^>]+>", "", c).strip() for c in re.findall(r"<t[dh][^>]*>(.*?)</t[dh]>", row, re.S)]
+        cells = [
+            re.sub(r"<[^>]+>", "", c).strip()
+            for c in re.findall(r"<t[dh][^>]*>(.*?)</t[dh]>", row, re.DOTALL)
+        ]
         cells = [c.replace("\xa0", " ").strip() for c in cells if c.strip()]
         # 期望三列：名称 | 日期（如 1月1日）| 星期
         if len(cells) < 2:
@@ -85,9 +92,9 @@ def parse_hk(html_text: str, year: int) -> list[dict]:
 # ---------------------------------------------------------------------------
 def parse_cn(html_text: str, year: int) -> list[dict]:
     # 先去掉 script/style，再取 <p> 段落
-    text = re.sub(r"<script.*?</script>", "", html_text, flags=re.S)
-    text = re.sub(r"<style.*?</style>", "", text, flags=re.S)
-    paragraphs = re.findall(r"<p[^>]*>(.*?)</p>", text, re.S)
+    text = re.sub(r"<script.*?</script>", "", html_text, flags=re.DOTALL)
+    text = re.sub(r"<style.*?</style>", "", text, flags=re.DOTALL)
+    paragraphs = re.findall(r"<p[^>]*>(.*?)</p>", text, re.DOTALL)
 
     holidays: list[dict] = []
     for p in paragraphs:
@@ -117,7 +124,7 @@ def parse_cn(html_text: str, year: int) -> list[dict]:
         # 所以取"上班"所在句子的整体片段，提取其中所有日期
         workdays: list[str] = []
         for seg in re.findall(r"[^。；]*上班", detail):
-            for (m2, d2) in re.findall(r"(\d{1,2})月(\d{1,2})日", seg):
+            for m2, d2 in re.findall(r"(\d{1,2})月(\d{1,2})日", seg):
                 workdays.append(f"{year}-{int(m2):02d}-{int(d2):02d}")
         holidays.append(
             {
@@ -154,14 +161,23 @@ def run(region: str, years: list[int]) -> None:
         html_text = fetch(urls[year])
         data = parser(html_text, year)
         out = DATA_DIR / OUT_NAMES[region].format(year=year)
-        out.write_text(json.dumps({"year": year, "region": region, "holidays": data}, ensure_ascii=False, indent=2), encoding="utf-8")
+        out.write_text(
+            json.dumps(
+                {"year": year, "region": region, "holidays": data},
+                ensure_ascii=False,
+                indent=2,
+            ),
+            encoding="utf-8",
+        )
         print(f"[save] {out} ({len(data)} 条)")
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="抓取官方节假日数据 → 本地 JSON")
     parser.add_argument("--region", choices=["hk", "cn", "all"], default="all")
-    parser.add_argument("--years", nargs="+", type=int, default=None, help="年份列表，缺省用配置的全部")
+    parser.add_argument(
+        "--years", nargs="+", type=int, default=None, help="年份列表，缺省用配置的全部"
+    )
     args = parser.parse_args()
 
     regions = ["hk", "cn"] if args.region == "all" else [args.region]

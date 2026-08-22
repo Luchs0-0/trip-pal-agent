@@ -2,6 +2,7 @@
 
 这些测试不依赖 LLM / 网络，只读本地 JSON，跑得快且稳定。
 """
+
 from __future__ import annotations
 
 from trip_pal.data_loader import available_years, get_cn_holidays, get_hk_holidays
@@ -30,7 +31,15 @@ class TestDataLoader:
         """内地 2026 应有 7 个主要节日（元旦/春节/清明/劳动/端午/中秋/国庆）。"""
         holidays = get_cn_holidays(2026)
         names = [h["name"] for h in holidays]
-        for expected in ["元旦", "春节", "清明节", "劳动节", "端午节", "中秋节", "国庆节"]:
+        for expected in [
+            "元旦",
+            "春节",
+            "清明节",
+            "劳动节",
+            "端午节",
+            "中秋节",
+            "国庆节",
+        ]:
             assert expected in names, f"缺少节日: {expected}"
 
     def test_cn_2026_spring_festival_makeup_days(self):

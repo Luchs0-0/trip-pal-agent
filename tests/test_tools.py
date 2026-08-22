@@ -3,6 +3,7 @@
 重点覆盖拼假逻辑——这是我们反复调过的复杂逻辑，
 必须有测试保护，防止以后改代码时弄坏。
 """
+
 from __future__ import annotations
 
 from trip_pal.tools import (
