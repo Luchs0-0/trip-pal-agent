@@ -2,8 +2,6 @@
 
 from types import SimpleNamespace
 
-from trip_pal.graph import chat
-
 
 def _msg(obj):
     """给 SimpleNamespace 补 type 属性访问。"""
