@@ -108,27 +108,35 @@ def chat(history: list, question: str) -> tuple[str, list[dict], list]:
     result = agent.invoke({"messages": lc_messages})
     messages = result.get("messages", [])
 
-    # 3) 提取回答 + 工具轨迹（逻辑与 ask_with_trace 相同）
+    # 3) 提取回答 + 工具轨迹（用 tool_call_id 精确配对，避免同工具多次调用时错位）
     trace: list[dict] = []
-    answer = "（Agent 没有返回有效回答）"
+    trace_by_id: dict[str, dict] = {}
+    answer = ""
     for msg in messages:
         mtype = getattr(msg, "type", "")
         if mtype == "ai" and getattr(msg, "tool_calls", None):
             for tc in msg.tool_calls:
-                trace.append(
-                    {
-                        "tool": tc.get("name", ""),
-                        "args": tc.get("args", {}),
-                        "result": "（等待执行）",
-                    }
-                )
+                tc_id = tc.get("id", "")
+                entry = {
+                    "tool": tc.get("name", ""),
+                    "args": tc.get("args", {}),
+                    "result": "（等待执行）",
+                }
+                trace.append(entry)
+                if tc_id:
+                    trace_by_id[tc_id] = entry
         elif mtype == "tool":
-            for item in reversed(trace):
-                if item["tool"] == msg.name and item["result"] == "（等待执行）":
-                    item["result"] = str(msg.content)[:500]
-                    break
+            # ToolMessage.tool_call_id 与发起调用的 AIMessage.tool_calls[].id 一一对应
+            entry = trace_by_id.get(getattr(msg, "tool_call_id", ""))
+            if entry is not None:
+                entry["result"] = str(msg.content)[:500]
         elif mtype == "ai" and not getattr(msg, "tool_calls", None):
-            answer = str(msg.content)
+            if str(msg.content).strip():
+                answer = str(msg.content)
+
+    # 空回复兜底：不把占位文本存进历史（会污染下一轮上下文）
+    if not answer.strip():
+        answer = "（Agent 未能生成回答，请重试或换个问法）"
 
     # 4) 更新后的历史 = 旧历史 + 本轮（user 问题 + assistant 回答，带 trace）
     history_new = list(history) + [
@@ -150,25 +158,30 @@ def ask_with_trace(question: str) -> tuple[str, list[dict]]:
     messages = result.get("messages", [])
 
     trace: list[dict] = []
-    answer = "（Agent 没有返回有效回答）"
+    trace_by_id: dict[str, dict] = {}
+    answer = ""
     for msg in messages:
         mtype = getattr(msg, "type", "")
         if mtype == "ai" and getattr(msg, "tool_calls", None):
             for tc in msg.tool_calls:
-                trace.append(
-                    {
-                        "tool": tc.get("name", ""),
-                        "args": tc.get("args", {}),
-                        "result": "（等待执行）",
-                    }
-                )
+                tc_id = tc.get("id", "")
+                entry = {
+                    "tool": tc.get("name", ""),
+                    "args": tc.get("args", {}),
+                    "result": "（等待执行）",
+                }
+                trace.append(entry)
+                if tc_id:
+                    trace_by_id[tc_id] = entry
         elif mtype == "tool":
-            for item in reversed(trace):
-                if item["tool"] == msg.name and item["result"] == "（等待执行）":
-                    item["result"] = str(msg.content)[:500]
-                    break
+            entry = trace_by_id.get(getattr(msg, "tool_call_id", ""))
+            if entry is not None:
+                entry["result"] = str(msg.content)[:500]
         elif mtype == "ai" and not getattr(msg, "tool_calls", None):
-            answer = str(msg.content)
+            if str(msg.content).strip():
+                answer = str(msg.content)
+    if not answer.strip():
+        answer = "（Agent 未能生成回答，请重试或换个问法）"
     return answer, trace
 
 
@@ -213,6 +226,7 @@ async def stream_chat(history: list, question: str):
     #    注意：带 tool_calls 的 ai 消息可能带 content（"我来查一下"），
     #    那不是最终回答，必须跳过。
     trace: list[dict] = []
+    trace_by_id: dict[str, dict] = {}
     answer_parts: list[str] = []
     async for chunk in agent.astream({"messages": lc_messages}):
         if not isinstance(chunk, dict):
@@ -224,12 +238,15 @@ async def stream_chat(history: list, question: str):
                 mtype = getattr(msg, "type", "")
                 if mtype == "ai" and getattr(msg, "tool_calls", None):
                     for tc in msg.tool_calls:
+                        tc_id = tc.get("id", "")
                         entry = {
                             "tool": tc.get("name", ""),
                             "args": tc.get("args", {}),
                             "result": "（等待执行）",
                         }
                         trace.append(entry)
+                        if tc_id:
+                            trace_by_id[tc_id] = entry
                         yield {
                             "type": "tool_start",
                             "tool": entry["tool"],
@@ -244,21 +261,19 @@ async def stream_chat(history: list, question: str):
         if isinstance(tools_inner, dict):
             for msg in tools_inner.get("messages", []):
                 if getattr(msg, "type", "") == "tool":
-                    for entry in reversed(trace):
-                        if (
-                            entry["tool"] == msg.name
-                            and entry["result"] == "（等待执行）"
-                        ):
-                            entry["result"] = str(msg.content)[:500]
-                            yield {
-                                "type": "tool_result",
-                                "tool": msg.name,
-                                "result": entry["result"],
-                            }
-                            break
+                    # ToolMessage.tool_call_id 精确配对发起调用的 entry
+                    entry = trace_by_id.get(getattr(msg, "tool_call_id", ""))
+                    if entry is None:
+                        continue
+                    entry["result"] = str(msg.content)[:500]
+                    yield {
+                        "type": "tool_result",
+                        "tool": entry["tool"],
+                        "result": entry["result"],
+                    }
 
     # 3) 全部完成：拼出完整回答，带 trace 一起收尾
-    answer = "".join(answer_parts) or "（Agent 没有返回有效回答）"
+    answer = "".join(answer_parts).strip() or ("（Agent 未能生成回答，请重试或换个问法）")
     yield {"type": "done", "answer": answer, "trace": trace}
 
 
