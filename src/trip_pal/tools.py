@@ -16,6 +16,10 @@ from __future__ import annotations
 
 from datetime import date, datetime, timedelta, timezone
 
+from langchain_core.tools import tool
+
+from .data_loader import available_years, get_cn_holidays, get_hk_holidays
+
 # 固定使用香港时区（UTC+8）：服务面向香港/内地用户，
 # 无论部署在哪个时区，"今天"都以 UTC+8 为准，避免日期边界错误。
 HKT = timezone(timedelta(hours=8))
@@ -24,10 +28,6 @@ HKT = timezone(timedelta(hours=8))
 def today_hk() -> date:
     """返回香港时区（UTC+8）的今天。"""
     return datetime.now(HKT).date()
-
-from langchain_core.tools import tool
-
-from .data_loader import available_years, get_cn_holidays, get_hk_holidays
 
 
 # ---------------------------------------------------------------------------
@@ -128,7 +128,9 @@ def find_common_breaks(year: int) -> dict:
                             "festival": h["name"],
                             "cn_range": f"{c_start.isoformat()} ~ {c_end.isoformat()}",
                             "cn_days": cn_days,
-                            "overlap_with_hk": f"{overlap_start.isoformat()} ~ {overlap_end.isoformat()}",
+                            "overlap_with_hk": (
+                                f"{overlap_start.isoformat()} ~ {overlap_end.isoformat()}"
+                            ),
                             "hk_holidays_in_window": [
                                 x["name"]
                                 for x in hk
