@@ -130,6 +130,22 @@ Your question → LLM plans "what data?"
 
 See [DESIGN.md](DESIGN.md) §2, §4.
 
+## 🏗️ Architecture
+
+TripPal is organized around a small, inspectable agent loop:
+
+```text
+Traveler → FastAPI Web UI → LangGraph Agent ↔ DeepSeek / OpenAI-compatible LLM
+                                      ├─ holiday lookup tools → local JSON calendars
+                                      └─ leave stacking and date calculation tools
+```
+
+The web app streams tool calls and the final answer over SSE, while session history is persisted locally so conversations survive refreshes and restarts. Holiday data is bundled as versioned JSON files and is not fetched at runtime.
+
+**Interactive architecture viewer:** [Open the TripPal architecture diagram](docs/architecture/trippal-architecture.html)
+
+The diagram was generated from the repository structure and implementation using [Archify](https://github.com/tt-a1i/archify). It includes guided views for the primary planning request and the tool/data path.
+
 ---
 
 ## 📂 Project Structure

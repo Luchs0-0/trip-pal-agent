@@ -130,6 +130,22 @@ OPENAI_MODEL=deepseek-chat
 
 详见 [DESIGN.md](DESIGN.md) §2、§4。
 
+## 🏗️ 系统架构
+
+TripPal 采用一个小而清晰、便于检查的 Agent 循环：
+
+```text
+用户 → FastAPI Web UI → LangGraph Agent ↔ DeepSeek / OpenAI 兼容模型
+                                  ├─ 节假日查询工具 → 本地 JSON 日历
+                                  └─ 拼假与日期计算工具
+```
+
+Web 应用通过 SSE 流式返回工具调用过程和最终答案；会话历史持久化到本地，因此刷新页面或重启服务后仍可恢复。节假日数据以带版本的 JSON 文件随项目提供，运行时不会请求外部网站。
+
+**交互式架构预览：** [打开 TripPal 架构图](docs/architecture/trippal-architecture.html)
+
+该图基于仓库中的实际代码结构和实现，使用 [Archify](https://github.com/tt-a1i/archify) 生成，并提供“主要规划请求”和“工具与数据链路”两个引导视图。
+
 ---
 
 ## 📂 项目结构
