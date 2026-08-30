@@ -134,6 +134,10 @@ See [DESIGN.md](DESIGN.md) §2, §4.
 
 TripPal is organized around a small, inspectable agent loop:
 
+<p align="center">
+  <img src="docs/architecture/trippal-architecture.svg" alt="TripPal architecture diagram" width="100%">
+</p>
+
 ```text
 Traveler → FastAPI Web UI → LangGraph Agent ↔ DeepSeek / OpenAI-compatible LLM
                                       ├─ holiday lookup tools → local JSON calendars

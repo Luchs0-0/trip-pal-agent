@@ -134,6 +134,10 @@ OPENAI_MODEL=deepseek-chat
 
 TripPal 采用一个小而清晰、便于检查的 Agent 循环：
 
+<p align="center">
+  <img src="docs/architecture/trippal-architecture.svg" alt="TripPal 系统架构图" width="100%">
+</p>
+
 ```text
 用户 → FastAPI Web UI → LangGraph Agent ↔ DeepSeek / OpenAI 兼容模型
                                   ├─ 节假日查询工具 → 本地 JSON 日历
