@@ -4,7 +4,7 @@ version = "1.0.0"
 description = "香港/内地两地行程与节假日助手 Agent（LangGraph + FastAPI）"
 readme = "README.md"
 license = { file = "LICENSE" }
-authors = [{ name = "zhounongshen" }]
+authors = [{ name = "Luchs0-0" }]
 requires-python = ">=3.11"
 dependencies = [
     "langgraph>=0.2.0",

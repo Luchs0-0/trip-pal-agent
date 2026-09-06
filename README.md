@@ -1,7 +1,7 @@
 # TripPal · Cross-Border Travel Assistant
 
-[![CI](https://github.com/zhounongshen/trip-pal-agent/actions/workflows/ci.yml/badge.svg)](https://github.com/zhounongshen/trip-pal-agent/actions)
-[![Live Demo](https://img.shields.io/badge/Live_Demo-在线演示-38bdf8)](https://zhounongshen.github.io/trip-pal-agent/demo.html)
+[![CI](https://github.com/Luchs0-0/trip-pal-agent/actions/workflows/ci.yml/badge.svg)](https://github.com/Luchs0-0/trip-pal-agent/actions)
+[![Live Demo](https://img.shields.io/badge/Live_Demo-在线演示-38bdf8)](https://Luchs0-0.github.io/trip-pal-agent/demo.html)
 
 <p align="center">
   <a href="README.zh-CN.md">🌐 中文</a>
@@ -55,7 +55,7 @@ A 85-second walkthrough of the Web UI — holiday lookup, HK/CN common-break mat
 ### 1. Clone & Install
 
 ```bash
-git clone https://github.com/zhounongshen/trip-pal-agent.git
+git clone https://github.com/Luchs0-0/trip-pal-agent.git
 cd trip-pal-agent
 
 # create venv & install deps + the project itself (editable) with uv

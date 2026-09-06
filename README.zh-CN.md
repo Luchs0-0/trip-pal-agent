@@ -1,7 +1,7 @@
 # TripPal · 两地行程助手
 
-[![CI](https://github.com/zhounongshen/trip-pal-agent/actions/workflows/ci.yml/badge.svg)](https://github.com/zhounongshen/trip-pal-agent/actions)
-[![Live Demo](https://img.shields.io/badge/Live_Demo-在线演示-38bdf8)](https://zhounongshen.github.io/trip-pal-agent/demo.html)
+[![CI](https://github.com/Luchs0-0/trip-pal-agent/actions/workflows/ci.yml/badge.svg)](https://github.com/Luchs0-0/trip-pal-agent/actions)
+[![Live Demo](https://img.shields.io/badge/Live_Demo-在线演示-38bdf8)](https://Luchs0-0.github.io/trip-pal-agent/demo.html)
 
 <p align="center">
   <a href="README.md">🌐 English</a>
@@ -55,7 +55,7 @@
 ### 1. 克隆与安装
 
 ```bash
-git clone https://github.com/zhounongshen/trip-pal-agent.git
+git clone https://github.com/Luchs0-0/trip-pal-agent.git
 cd trip-pal-agent
 
 # 用 uv 创建虚拟环境，安装依赖 + 项目本体（可编辑模式）
